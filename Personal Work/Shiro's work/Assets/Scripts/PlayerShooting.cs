@@ -4,71 +4,89 @@ using UnityEngine;
 
 public class PlayerShooting : MonoBehaviour
 {
-    public GameObject pistolWeapon; // Attach pistol GameObject as child in the Inspector
-    public GameObject rifleWeapon;  // Attach rifle GameObject as child in the Inspector
+    public GameObject gun; // Attach the gun GameObject in the Inspector
     public Transform firePoint;
-    public GameObject pistolBulletPrefab; // Attach pistol bullet prefab in the Inspector
-    public GameObject rifleBulletPrefab;  // Attach rifle bullet prefab in the Inspector
-    public float pistolFireRate = 0.5f;   // Adjust as needed
-    public float rifleFireRate = 0.1f;    // Adjust as needed
-    public float pistolBulletSpeed = 10f; // Adjust as needed
-    public float rifleBulletSpeed = 20f;  // Adjust as needed
+    public GameObject bulletPrefab;
 
-    private GameObject currentWeapon;
-    private GameObject currentBulletPrefab;
+    private SpriteRenderer gunSpriteRenderer;
     private float nextShootTime;
+    private float currentFireRate;
+    private float pistolBulletSpeed = 10f; // Adjust pistol bullet speed
+    private float rifleBulletSpeed = 15f; // Adjust rifle bullet speed
+    private float pistolBulletSpacing = 0.1f; // Adjust pistol bullet spacing as needed
+    private float rifleBulletSpacing = 0.3f; // Adjust rifle bullet spacing as needed
+
+    public Sprite pistolSprite; // Assign the pistol sprite in the Inspector
+    public Sprite rifleSprite;  // Assign the rifle sprite in the Inspector
+
+    private bool canShoot = true; // Flag to control shooting
 
     private void Start()
     {
-        SwitchWeapon(pistolWeapon, pistolBulletPrefab);
-        nextShootTime = 0f;
+        gunSpriteRenderer = gun.GetComponent<SpriteRenderer>();
+        SwitchWeapon("pistol"); // Start with the pistol
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
-            SwitchWeapon(pistolWeapon, pistolBulletPrefab);
+            SwitchWeapon("pistol");
         }
         else if (Input.GetKeyDown(KeyCode.Alpha2))
         {
-            SwitchWeapon(rifleWeapon, rifleBulletPrefab);
+            SwitchWeapon("rifle");
         }
 
-        if (Input.GetMouseButton(0) && Time.time >= nextShootTime)
+        if (Input.GetMouseButton(0) && canShoot)
         {
+            canShoot = false; // Prevent multiple shots in quick succession
             Shoot();
         }
     }
 
-    private void SwitchWeapon(GameObject newWeapon, GameObject newBulletPrefab)
+    private void SwitchWeapon(string weaponType)
     {
-        if (currentWeapon != null)
+        if (weaponType == "pistol")
         {
-            currentWeapon.SetActive(false);
+            gunSpriteRenderer.sprite = rifleSprite;
+            currentFireRate = 0.5f; // Adjust the pistol fire rate
+            pistolBulletSpacing = 0.1f; // Adjust pistol bullet spacing
         }
-        currentWeapon = newWeapon;
-        currentWeapon.SetActive(true);
-
-        currentBulletPrefab = newBulletPrefab;
+        else if (weaponType == "rifle")
+        {
+            gunSpriteRenderer.sprite = pistolSprite;
+            currentFireRate = 0.1f; // Adjust the rifle fire rate
+            rifleBulletSpacing = 0.3f; // Adjust rifle bullet spacing
+        }
     }
 
     private void Shoot()
     {
-        nextShootTime = Time.time + (currentWeapon == pistolWeapon ? pistolFireRate : rifleFireRate);
+        nextShootTime = Time.time + currentFireRate;
 
         Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         Vector2 shootDirection = (mousePosition - transform.position).normalized;
 
-        GameObject newProjectile = Instantiate(currentBulletPrefab, firePoint.position, Quaternion.identity);
-        Rigidbody2D rb = newProjectile.GetComponent<Rigidbody2D>();
-        rb.velocity = shootDirection * (currentWeapon == pistolWeapon ? pistolBulletSpeed : rifleBulletSpeed);
+        float bulletSpeed = (currentFireRate < 0.2f) ? rifleBulletSpeed : pistolBulletSpeed; // Bullet speed remains constant
+        float bulletSpacing = (currentFireRate < 0.2f) ? rifleBulletSpacing : pistolBulletSpacing; // Adjust based on fire rate
 
-        Destroy(newProjectile, 3f); // Destroy the projectile after 3 seconds (adjust as needed)
+        // Instantiate the bullets with the calculated initial velocity and spacing
+        StartCoroutine(SpawnBullets(shootDirection, bulletSpeed, bulletSpacing));
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private IEnumerator SpawnBullets(Vector2 shootDirection, float speed, float spacing)
     {
-        Destroy(gameObject); // Destroy the bullet when it collides with something
+        while (Time.time < nextShootTime)
+        {
+            GameObject newBullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
+            Rigidbody2D rb = newBullet.GetComponent<Rigidbody2D>();
+            rb.velocity = shootDirection * speed;
+
+            Destroy(newBullet, 3f);
+            yield return new WaitForSeconds(spacing);
+        }
+
+        canShoot = true; // Allow shooting again
     }
 }
